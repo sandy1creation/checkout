@@ -1,0 +1,78 @@
+api_version = "2025-10"
+
+[[extensions]]
+name = "checkout-checkbox"
+handle = "checkout-checkbox"
+type = "ui_extension"
+uid = "checkout-checkbox-extension"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.checkout.block.render"
+
+[extensions.capabilities]
+block_progress = true
+
+[extensions.settings]
+
+# Hide Checkbox Setting
+[[extensions.settings.fields]]
+key = "hide_checkbox"
+type = "boolean"
+name = "Hide Checkbox"
+description = "If enabled, the checkbox will be completely hidden from checkout"
+default = false
+
+# Checkbox Label with Rich Text Editor
+[[extensions.settings.fields]]
+key = "checkbox_label"
+type = "rich_text_field"
+name = "Checkbox Label"
+description = "Label text for the checkbox. Use the toolbar to add links."
+
+# Required Checkbox
+[[extensions.settings.fields]]
+key = "checkbox_required"
+type = "boolean"
+name = "Required"
+description = "If enabled, customer must check this box to proceed with checkout"
+default = false
+
+# Block Checkout Error Message
+[[extensions.settings.fields]]
+key = "block_error_message"
+type = "single_line_text_field"
+name = "Block Checkout Error Message"
+description = "Error message shown when checkout is blocked because checkbox is not checked"
+default = "Please accept the terms to continue"
+
+# Default Checked State
+[[extensions.settings.fields]]
+key = "checkbox_default_checked"
+type = "boolean"
+name = "Default Checked"
+description = "Whether the checkbox should be checked by default"
+default = false
+
+# Multiple Variants Selection
+[[extensions.settings.fields]]
+key = "variant_selection"
+type = "multi_line_text_field"
+name = "Variant Selection (Optional)"
+description = "Comma-separated variant IDs. The checkbox will show when these variants are in cart"
+default = ""
+
+[[extensions.settings.fields]]
+key = "match_any_variant"
+type = "boolean"
+name = "Match Any Variant"
+description = "If enabled, checkbox shows when ANY selected variant is in cart. If disabled, checkbox shows only when ALL selected variants are in cart"
+default = true
+
+# Country Selection
+[[extensions.settings.fields]]
+key = "country_selection"
+type = "single_line_text_field"
+name = "Country Selection (Optional)"
+description = "Comma-separated country codes where checkbox should be displayed"
+default = ""
