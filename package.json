@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "postinstall": "prisma generate && prisma db push",
-    "build": "prisma generate && prisma db push && react-router build",
+    "build": "react-router build",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
