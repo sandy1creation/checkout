@@ -2,8 +2,8 @@
   "name": "agree",
   "private": true,
   "scripts": {
-    "postinstall": "npm run setup",
-    "build": "npm run setup && react-router build",
+    "postinstall": "prisma generate && prisma migrate deploy",
+    "build": "prisma generate && prisma migrate deploy && react-router build",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
