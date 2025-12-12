@@ -26,7 +26,9 @@ export const loader = async ({ request }) => {
     console.log('[SERVER] Active subscriptions query response:', JSON.stringify(data, null, 2));
     
     const activeSubscriptions = data.data?.currentAppInstallation?.activeSubscriptions || [];
-    const isActive = true;
+    const isActive = activeSubscriptions.length > 0 && 
+                     activeSubscriptions.some(sub => sub.status === "ACTIVE" || sub.status === "ACCEPTED");
+    
     
     // Update shop metafield with subscription status
     try {
