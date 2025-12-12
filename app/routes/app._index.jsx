@@ -5,13 +5,121 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
-  return { shopDomain: session.shop };
+  const { admin, session } = await authenticate.admin(request);
+  
+  // Check for active subscriptions using GraphQL query
+  try {
+    const response = await admin.graphql(
+      `#graphql
+      query GetActiveAppSubscriptions {
+        currentAppInstallation {
+          activeSubscriptions {
+            id
+            name
+            status
+          }
+        }
+      }`
+    );
+
+    const data = await response.json();
+    console.log('[SERVER] Active subscriptions query response:', JSON.stringify(data, null, 2));
+    
+    const activeSubscriptions = data.data?.currentAppInstallation?.activeSubscriptions || [];
+    const isActive = true;
+    
+    // Update shop metafield with subscription status
+    try {
+      // First get shop ID
+      const shopQuery = await admin.graphql(
+        `#graphql
+        query {
+          shop {
+            id
+          }
+        }`
+      );
+      const shopData = await shopQuery.json();
+      const shopId = shopData.data?.shop?.id;
+      
+      if (shopId) {
+        await admin.graphql(
+          `#graphql
+          mutation SetShopMetafield($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields {
+                id
+                namespace
+                key
+                value
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          {
+            variables: {
+              metafields: [
+                {
+                  namespace: "agreed_app",
+                  key: "subscription_active",
+                  value: String(isActive),
+                  type: "boolean",
+                  ownerId: shopId
+                }
+              ]
+            }
+          }
+        );
+        console.log('[SERVER] Shop metafield updated:', { isActive, shopId });
+      }
+    } catch (metafieldError) {
+      console.error('[SERVER] Error updating shop metafield:', metafieldError);
+      // Continue even if metafield update fails
+    }
+    
+    return {
+      shopDomain: session.shop,
+      isActive,
+      activeSubscriptions,
+    };
+  } catch (error) {
+    console.error('[SERVER] Error checking active subscriptions:', error);
+    return {
+      shopDomain: session.shop,
+      isActive: false,
+      activeSubscriptions: [],
+    };
+  }
 };
 
+
 export default function Index() {
-  const { shopDomain } = useLoaderData();
+  const { shopDomain, isActive } = useLoaderData();
   const shopify = useAppBridge();
+
+  // Log initial state on client
+  useEffect(() => {
+    console.log('[CLIENT] Component mounted with initial state:', {
+      shopDomain,
+      isActive
+    });
+  }, []); // Only run on mount
+
+  // Redirect to pricing plans if not active
+  useEffect(() => {
+    if (!isActive) {
+      const pricingUrl = `https://${shopDomain}/admin/charges/agree-2/pricing_plans`;
+      console.log('[CLIENT] Plan not active, redirecting to:', pricingUrl);
+      if (window.top) {
+        window.top.location.href = pricingUrl;
+      } else {
+        window.location.href = pricingUrl;
+      }
+    }
+  }, [isActive, shopDomain]);
 
   const [extensionStatus, setExtensionStatus] = useState({
     label: "Checking status…",
@@ -21,19 +129,15 @@ export default function Index() {
   const [statusError, setStatusError] = useState("");
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [isOpeningSettings, setIsOpeningSettings] = useState(false);
+  const [hasRequestedReview, setHasRequestedReview] = useState(false);
 
   const checkExtensionStatus = useCallback(async () => {
     if (!shopify) return;
-
     setIsCheckingStatus(true);
     setStatusError("");
-    
     try {
       const extensions = await shopify.app.extensions();
-      
-      // Find the specific checkout-checkbox extension by handle
       const checkboxExtension = extensions.find(ext => ext.handle === "checkout-checkbox");
-
       if (!checkboxExtension) {
         setExtensionStatus({
           label: "Not found",
@@ -42,10 +146,8 @@ export default function Index() {
         });
         return;
       }
-
       const activationCount = checkboxExtension?.activations?.length || 0;
       const isActive = activationCount > 0;
-
       setExtensionStatus({
         label: isActive ? "Active" : "Inactive",
         tone: isActive ? "success" : "info",
@@ -53,6 +155,9 @@ export default function Index() {
           ? "Extension is active. The checkbox is now appearing in your checkout."
           : "Extension is deployed but inactive. Check if it targets 'purchase.checkout.block.render'.",
       });
+      if (isActive && !hasRequestedReview) {
+        requestReview();
+      }
     } catch (error) {
       console.error("Failed to load extension status", error);
       setStatusError("Unable to verify the checkbox extension status. Please try refreshing the page.");
@@ -64,34 +169,44 @@ export default function Index() {
     } finally {
       setIsCheckingStatus(false);
     }
-  }, [shopify]);
+  }, [shopify, hasRequestedReview]);
+
+  const requestReview = useCallback(async () => {
+    if (!shopify || hasRequestedReview) return;
+    try {
+      const result = await shopify.reviews.request();
+      if (result.success) {
+        setHasRequestedReview(true);
+      }
+    } catch (error) {
+      console.error('Error requesting review:', error);
+    }
+  }, [shopify, hasRequestedReview]);
 
   useEffect(() => {
-    checkExtensionStatus();
-  }, [checkExtensionStatus]);
+    if (isActive) {
+      checkExtensionStatus();
+    }
+  }, [checkExtensionStatus, isActive]);
 
   const checkoutSettingsUrl = useMemo(() => {
-    if (!shopDomain) {
-      return null;
-    }
+    if (!shopDomain) return null;
     return `https://${shopDomain}/admin/settings/checkout/editor/?page=information&context=apps`;
   }, [shopDomain]);
 
   const handleManageSettings = useCallback(() => {
     if (!checkoutSettingsUrl) return;
-    
     setIsOpeningSettings(true);
-    // Auto-refresh status after 20 seconds
     setTimeout(() => {
       setIsOpeningSettings(false);
       checkExtensionStatus();
     }, 20000);
-    // Simple window.open - works in most cases
-    const newWindow = open(checkoutSettingsUrl, "_blank");
-    console.log("newWindow", newWindow);
-    
-  }, [checkoutSettingsUrl]);
-
+    window.open(checkoutSettingsUrl, "_blank");
+  }, [checkoutSettingsUrl, checkExtensionStatus]);
+  if (!isActive) {
+    return <s-spinner accessibilityLabel="Loading" size="large-100" />;
+  }
+  // Show main app interface if active
   return (
     <div suppressHydrationWarning>
       <s-page heading="AGREED - Checkout Checkbox Extension">

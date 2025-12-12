@@ -12,6 +12,11 @@ target = "purchase.checkout.block.render"
 
 [extensions.capabilities]
 block_progress = true
+api_access = true
+
+[[extensions.metafields]]
+namespace = "agreed_app"
+key = "subscription_active"
 
 [extensions.settings]
 

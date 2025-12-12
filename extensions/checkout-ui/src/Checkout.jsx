@@ -2,13 +2,74 @@ import '@shopify/ui-extensions/preact';
 import {render} from "preact";
 import {useState, useEffect} from "preact/hooks";
 import {useBuyerJourneyIntercept} from '@shopify/ui-extensions/checkout/preact';
+import {useAppMetafields} from '@shopify/ui-extensions/checkout/preact';
 
 export default async () => {
   render(<Extension />, document.body)
 };
 
 function Extension() {
+  const metafields = useAppMetafields() || [];
+  console.log('Metafields:', metafields);
+  const statusMetafield = metafields.find(
+    m =>
+      (m.namespace === 'agreed_app' || m.namespace === 'AGREED_APP') &&
+      m.key === 'subscription_active'
+  ) ||
+    metafields.find(m => m.metafield && m.metafield.namespace === 'agreed_app' && m.metafield.key === 'subscription_active');
+
+  const value = statusMetafield?.value ||
+    (statusMetafield?.metafield && statusMetafield.metafield.value);
+
+  const subscriptionActive = value === 'true';
+  if (!subscriptionActive) {
+    console.log('[EXTENSION] Blocked, subscription_active is:', value);
+    return null;
+  }
+
   const settings = shopify.settings.value || {};
+  // Shop subscription block logic
+  // Check shop metafield for subscription status
+  // useEffect(() => {
+  //   const checkSubscriptionStatus = async () => {
+  //     try {
+  //       // Query shop metafield using Storefront API
+  //       const query = `
+  //         query {
+  //           shop {
+  //             metafield(namespace: "agreed_app", key: "subscription_active") {
+  //               value
+  //             }
+  //           }
+  //         }
+  //       `;
+        
+  //       const result = await shopify.query(query);
+  //       console.log("result", result);
+  //       const metafieldValue = result && typeof result === 'object' && 'data' in result 
+  //         ? result.data?.shop?.metafield?.value 
+  //         : null;
+        
+  //       // Metafield value is stored as string, convert to boolean
+  //       const isActive = metafieldValue === "true";
+  //       setSubscriptionActive(isActive);
+        
+  //       console.log('[EXTENSION] Subscription status from metafield:', { metafieldValue, isActive });
+  //     } catch (error) {
+  //       console.error('[EXTENSION] Error checking subscription metafield:', error);
+  //       // If error, default to false to block extension
+  //       setSubscriptionActive(false);
+  //     }
+  //   };
+    
+  //   checkSubscriptionStatus();
+  // }, []);
+  
+  // Block extension if subscription is not active
+  // if (!subscriptionActive) {
+  //   console.log('[EXTENSION] Subscription not active, blocking extension');
+  //   return null;
+  // }
   
   const extractTextFromRichText = (richTextObj) => {
     if (typeof richTextObj === 'string') return richTextObj;
