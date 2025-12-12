@@ -29,6 +29,4 @@ model Session {
   locale        String?
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
-  plan          String?
-  planActive    Boolean   @default(false)
 }
